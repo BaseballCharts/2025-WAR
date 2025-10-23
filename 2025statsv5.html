@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 Baseball Stats Explorer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(to bottom right, #f8fafc, #dbeafe);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        #root { max-width: 1400px; margin: 0 auto; }
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #6b7280;
+        }
+        .tab.active {
+            background: white;
+            color: #3b82f6;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+        }
+        .tab:hover:not(.active) {
+            background: #f3f4f6;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .filters-container {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: end;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #4b5563;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+            cursor: pointer;
+            min-width: 140px;
+        }
+        select:focus { outline: none; border-color: #3b82f6; }
+        .pa-filter {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .pa-filter select {
+            min-width: 60px;
+        }
+        .pa-filter input {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            width: 80px;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #dc2626; }
+        .search-container {
+            position: relative;
+            min-width: 250px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 0.5rem 2rem 0.5rem 0.5rem;
+            border: 2px solid #3b82f6;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .search-clear {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            padding: 0.25rem;
+            font-size: 1rem;
+            color: #6b7280;
+            min-width: auto;
+        }
+        .search-clear:hover {
+            background: transparent;
+            color: #ef4444;
+        }
+        .search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            margin-top: 0.25rem;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .search-result {
+            padding: 0.75rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background 0.2s;
+        }
+        .search-result:hover {
+            background: #f3f4f6;
+        }
+        .search-result:last-child {
+            border-bottom: none;
+        }
+        .search-result-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .search-result-info {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            overflow-x: auto;
+        }
+        svg { display: block; }
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .tooltip div {
+            margin: 0.25rem 0;
+        }
+        .tooltip-player {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .source {
+            position: absolute;
+            font-size: 11px;
+            color: #6b7280;
+            bottom: 10px;
+            left: 60px;
+        }
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+            font-size: 1.125rem;
+        }
+        .error {
+            text-align: center;
+            padding: 3rem;
+            color: #ef4444;
+        }
+        .field-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 2rem;
+            position: relative;
+        }
+        .field-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .field-svg {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            display: block;
+        }
+        .position-bubble {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .position-bubble:hover {
+            filter: brightness(1.1);
+        }
+        .field-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            pointer-events: none;
+            z-index: 1000;
+            min-width: 200px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .field-tooltip-player {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 0.5rem;
+        }
+        .field-tooltip-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .field-tooltip-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .field-tooltip-item span:first-child {
+            color: #e5e7eb;
+        }
+        .field-tooltip-item span:last-child {
+            font-weight: 600;
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Ffs8hiKfEz9ippfr-yxkN62_i8tflHKaOElIAE26SGc/export?format=csv&gid=0';
+
+        const FIELD_POSITIONS = {
+            'C': { x: 450, y: 480 },
+            '1B': { x: 600, y: 410 },
+            '2B': { x: 550, y: 320 },
+            '3B': { x: 300, y: 410 },
+            'SS': { x: 350, y: 320 },
+            'LF': { x: 220, y: 200 },
+            'CF': { x: 450, y: 150 },
+            'RF': { x: 680, y: 200 },
+            'DH': { x: 750, y: 480 }
+        };
+
+        const statOptions = [
+            { category: 'Batting', stats: ['BA', 'OBP', 'SLG', 'OPS', 'OPS+'] },
+            { category: 'Plate Discipline', stats: ['BB%', 'SO%', 'O-Swing%', 'Z-Swing%', 'Swing%', 'O-Contact%', 'Z-Contact%', 'Contact%', 'Zone%'] },
+            { category: 'Power', stats: ['HR', 'HR%', 'TB', 'Exit Velocity', 'Max Exit Velocity', 'Launch Angle', 'Barrel%', 'HardHit%'] },
+            { category: 'Counting Stats', stats: ['H', '2B', '3B', 'R', 'RBI', 'SB', 'PA', 'AB', 'G'] },
+            { category: 'Value', stats: ['WAR', 'oWAR', 'dWAR'] }
+        ];
+
+        const fieldStatOptions = [
+            { category: 'Batting', stats: ['BA', 'OBP', 'SLG', 'OPS', 'OPS+'] },
+            { category: 'Power', stats: ['HR', 'HR%', 'Exit Velocity', 'Barrel%', 'HardHit%'] },
+            { category: 'Counting Stats', stats: ['H', 'R', 'RBI', 'SB'] },
+            { category: 'Value', stats: ['WAR', 'oWAR', 'dWAR'] }
+        ];
+
+        function StatsChart() {
+            const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [xStat, setXStat] = useState('OPS');
+            const [yStat, setYStat] = useState('WAR');
+            const [paOperator, setPaOperator] = useState('>=');
+            const [paValue, setPaValue] = useState('200');
+            const [activeTab, setActiveTab] = useState('chart');
+            const [fieldStat, setFieldStat] = useState('WAR');
+            const [fieldPaOperator, setFieldPaOperator] = useState('>=');
+            const [fieldPaValue, setFieldPaValue] = useState('200');
+            const [hoveredPlayer, setHoveredPlayer] = useState(null);
+            const [hoveredFieldPosition, setHoveredFieldPosition] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [searchQuery, setSearchQuery] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [selectedPlayer, setSelectedPlayer] = useState(null);
+            const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+            useEffect(() => {
+                Papa.parse(GOOGLE_SHEET_URL, {
+                    download: true,
+                    header: true,
+                    complete: (results) => {
+                        const cleanedData = results.data
+                            .filter(row => row.Player && row.Player.trim() !== '')
+                            .map(row => {
+                                const cleaned = {};
+                                Object.keys(row).forEach(key => {
+                                    const value = row[key];
+                                    if (value === '#DIV/0!' || value === '' || value === null) {
+                                        cleaned[key] = null;
+                                    } else if (!isNaN(value) && value !== '') {
+                                        cleaned[key] = parseFloat(value);
+                                    } else {
+                                        cleaned[key] = value;
+                                    }
+                                });
+                                return cleaned;
+                            });
+                        setData(cleanedData);
+                        setLoading(false);
+                    },
+                    error: (error) => {
+                        setError('Failed to load data');
+                        setLoading(false);
+                    }
+                });
+            }, []);
+
+            useEffect(() => {
+                if (searchQuery.trim() === '') {
+                    setSearchResults([]);
+                    setShowSearchDropdown(false);
+                    return;
+                }
+
+                const query = searchQuery.toLowerCase();
+                const results = data
+                    .filter(player => 
+                        player.Player.toLowerCase().includes(query)
+                    )
+                    .slice(0, 10);
+                
+                setSearchResults(results);
+                setShowSearchDropdown(true);
+            }, [searchQuery, data]);
+
+            const filteredData = useMemo(() => {
+                const paNum = parseFloat(paValue) || 0;
+                return data.filter(player => {
+                    if (!player[xStat] || !player[yStat] || !player.PA) return false;
+                    
+                    switch(paOperator) {
+                        case '>=': return player.PA >= paNum;
+                        case '<=': return player.PA <= paNum;
+                        case '=': return player.PA === paNum;
+                        default: return true;
+                    }
+                });
+            }, [data, xStat, yStat, paOperator, paValue]);
+
+            const topPlayersByPosition = useMemo(() => {
+                const paNum = parseFloat(fieldPaValue) || 0;
+                const filteredByPA = data.filter(player => {
+                    if (!player.PA) return false;
+                    switch(fieldPaOperator) {
+                        case '>=': return player.PA >= paNum;
+                        case '<=': return player.PA <= paNum;
+                        case '=': return player.PA === paNum;
+                        default: return true;
+                    }
+                });
+
+                const byPosition = {};
+                
+                filteredByPA.forEach(player => {
+                    if (!player.Position || !player[fieldStat]) return;
+                    
+                    const positions = player.Position.split(',').map(p => p.trim());
+                    positions.forEach(pos => {
+                        if (FIELD_POSITIONS[pos]) {
+                            if (!byPosition[pos]) byPosition[pos] = [];
+                            byPosition[pos].push(player);
+                        }
+                    });
+                });
+
+                Object.keys(byPosition).forEach(pos => {
+                    byPosition[pos].sort((a, b) => (b[fieldStat] || 0) - (a[fieldStat] || 0));
+                    byPosition[pos] = byPosition[pos].slice(0, 5);
+                });
+
+                return byPosition;
+            }, [data, fieldStat, fieldPaOperator, fieldPaValue]);
+
+            const { xMin, xMax, yMin, yMax } = useMemo(() => {
+                if (filteredData.length === 0) {
+                    return { xMin: 0, xMax: 1, yMin: 0, yMax: 1 };
+                }
+
+                const xValues = filteredData.map(d => d[xStat]).filter(v => v != null);
+                const yValues = filteredData.map(d => d[yStat]).filter(v => v != null);
+                
+                const xMin = Math.min(...xValues);
+                const xMax = Math.max(...xValues);
+                const yMin = Math.min(...yValues);
+                const yMax = Math.max(...yValues);
+                
+                const xPadding = (xMax - xMin) * 0.1;
+                const yPadding = (yMax - yMin) * 0.1;
+                
+                return {
+                    xMin: xMin - xPadding,
+                    xMax: xMax + xPadding,
+                    yMin: yMin - yPadding,
+                    yMax: yMax + yPadding
+                };
+            }, [filteredData, xStat, yStat]);
+
+            const formatStatValue = (stat, value) => {
+                if (value === null || value === undefined) return 'N/A';
+                if (['BA', 'OBP', 'SLG', 'OPS'].includes(stat)) {
+                    return value.toFixed(3);
+                }
+                if (stat.includes('%')) {
+                    return value.toFixed(1) + '%';
+                }
+                if (stat === 'WAR' || stat === 'oWAR' || stat === 'dWAR') {
+                    return value.toFixed(1);
+                }
+                if (Number.isInteger(value)) {
+                    return value.toString();
+                }
+                return value.toFixed(1);
+            };
+
+            const handleClearFilters = () => {
+                setPaOperator('>=');
+                setPaValue('200');
+                setSelectedPlayer(null);
+                setSearchQuery('');
+            };
+
+            const handleSelectPlayer = (player) => {
+                setSelectedPlayer(player);
+                setSearchQuery(player.Player);
+                setShowSearchDropdown(false);
+            };
+
+            const handleClearSearch = () => {
+                setSelectedPlayer(null);
+                setSearchQuery('');
+                setShowSearchDropdown(false);
+            };
+
+            if (loading) {
+                return <div className="loading">Loading baseball stats...</div>;
+            }
+
+            if (error) {
+                return <div className="error">{error}</div>;
+            }
+
+            const renderChartTab = () => {
+                const width = 1200;
+                const height = 600;
+                const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+                const chartWidth = width - margin.left - margin.right;
+                const chartHeight = height - margin.top - margin.bottom;
+
+                const xScale = (value) => {
+                    return margin.left + ((value - xMin) / (xMax - xMin)) * chartWidth;
+                };
+
+                const yScale = (value) => {
+                    return height - margin.bottom - ((value - yMin) / (yMax - yMin)) * chartHeight;
+                };
+
+                const xTicks = [];
+                const xRange = xMax - xMin;
+                const xTickCount = 8;
+                for (let i = 0; i <= xTickCount; i++) {
+                    xTicks.push(xMin + (xRange * i / xTickCount));
+                }
+
+                const yTicks = [];
+                const yRange = yMax - yMin;
+                const yTickCount = 8;
+                for (let i = 0; i <= yTickCount; i++) {
+                    yTicks.push(yMin + (yRange * i / yTickCount));
+                }
+
+                return (
+                <div className="chart-container">
+                    <div className="header-row">
+                        <div>
+                            <h1>2025 MLB Hitters</h1>
+                            <p className="subtitle">Bubble size represents Total WAR</p>
+                        </div>
+                        <div className="filters-container">
+                            <div className="filter-group">
+                                <label>Search Player</label>
+                                <div className="search-container">
+                                    <input
+                                        type="text"
+                                        className="search-input"
+                                        placeholder="Search player..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        onFocus={() => searchQuery && setShowSearchDropdown(true)}
+                                    />
+                                    {searchQuery && (
+                                        <button 
+                                            className="search-clear"
+                                            onClick={handleClearSearch}
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                    {showSearchDropdown && searchResults.length > 0 && (
+                                        <div className="search-dropdown">
+                                            {searchResults.map((player, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="search-result"
+                                                    onClick={() => handleSelectPlayer(player)}
+                                                >
+                                                    <div className="search-result-name">{player.Player}</div>
+                                                    <div className="search-result-info">
+                                                        {player.Team} • {player.Position} • WAR: {formatStatValue('WAR', player.WAR)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="filter-group">
+                                <label>X-Axis</label>
+                                <select value={xStat} onChange={(e) => setXStat(e.target.value)}>
+                                    {statOptions.map(group => (
+                                        <optgroup key={group.category} label={group.category}>
+                                            {group.stats.map(stat => (
+                                                <option key={stat} value={stat}>{stat}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="filter-group">
+                                <label>Y-Axis</label>
+                                <select value={yStat} onChange={(e) => setYStat(e.target.value)}>
+                                    {statOptions.map(group => (
+                                        <optgroup key={group.category} label={group.category}>
+                                            {group.stats.map(stat => (
+                                                <option key={stat} value={stat}>{stat}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="filter-group">
+                                <label>Min PA</label>
+                                <div className="pa-filter">
+                                    <select value={paOperator} onChange={(e) => setPaOperator(e.target.value)}>
+                                        <option value=">=">≥</option>
+                                        <option value="<=">≤</option>
+                                        <option value="=">=</option>
+                                    </select>
+                                    <input 
+                                        type="number" 
+                                        value={paValue}
+                                        onChange={(e) => setPaValue(e.target.value)}
+                                        placeholder="PA"
+                                    />
+                                </div>
+                            </div>
+                            <button onClick={handleClearFilters}>Clear Filters</button>
+                        </div>
+                    </div>
+
+                    <div className="chart-wrapper">
+                        <svg 
+                            width={width} 
+                            height={height}
+                            onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                        >
+                            <rect x={margin.left} y={margin.top} width={chartWidth} height={chartHeight} fill="#f9fafb" />
+                            
+                            {xTicks.map((tick, i) => (
+                                <g key={`x-${i}`}>
+                                    <line
+                                        x1={xScale(tick)}
+                                        y1={margin.top}
+                                        x2={xScale(tick)}
+                                        y2={height - margin.bottom}
+                                        stroke="#e5e7eb"
+                                        strokeWidth="1"
+                                    />
+                                    <text
+                                        x={xScale(tick)}
+                                        y={height - margin.bottom + 20}
+                                        textAnchor="middle"
+                                        fontSize="12"
+                                        fill="#6b7280"
+                                    >
+                                        {formatStatValue(xStat, tick)}
+                                    </text>
+                                </g>
+                            ))}
+                            
+                            {yTicks.map((tick, i) => (
+                                <g key={`y-${i}`}>
+                                    <line
+                                        x1={margin.left}
+                                        y1={yScale(tick)}
+                                        x2={width - margin.right}
+                                        y2={yScale(tick)}
+                                        stroke="#e5e7eb"
+                                        strokeWidth="1"
+                                    />
+                                    <text
+                                        x={margin.left - 10}
+                                        y={yScale(tick)}
+                                        textAnchor="end"
+                                        alignmentBaseline="middle"
+                                        fontSize="12"
+                                        fill="#6b7280"
+                                    >
+                                        {formatStatValue(yStat, tick)}
+                                    </text>
+                                </g>
+                            ))}
+
+                            <text
+                                x={width / 2}
+                                y={height - 10}
+                                textAnchor="middle"
+                                fontSize="14"
+                                fontWeight="600"
+                                fill="#374151"
+                            >
+                                {xStat}
+                            </text>
+
+                            <text
+                                x={20}
+                                y={height / 2}
+                                textAnchor="middle"
+                                fontSize="14"
+                                fontWeight="600"
+                                fill="#374151"
+                                transform={`rotate(-90, 20, ${height / 2})`}
+                            >
+                                {yStat}
+                            </text>
+
+                            {filteredData.map((player, idx) => {
+                                const x = xScale(player[xStat]);
+                                const y = yScale(player[yStat]);
+                                const war = Math.abs(player.WAR || 0);
+                                const radius = Math.max(3, Math.min(20, 3 + war * 2));
+                                
+                                const isSelected = selectedPlayer && selectedPlayer.Player === player.Player;
+                                const bubbleColor = isSelected ? '#fbbf24' : '#3b82f6';
+                                const bubbleOpacity = selectedPlayer && !isSelected ? 0.3 : 0.7;
+                                const strokeWidth = isSelected ? 3 : 2;
+                                const strokeColor = isSelected ? '#f59e0b' : '#2563eb';
+                                
+                                return (
+                                    <g key={idx}>
+                                        <circle
+                                            cx={x}
+                                            cy={y}
+                                            r={radius}
+                                            fill={bubbleColor}
+                                            fillOpacity={bubbleOpacity}
+                                            stroke={strokeColor}
+                                            strokeWidth={strokeWidth}
+                                            style={{ cursor: 'pointer' }}
+                                            onMouseEnter={() => setHoveredPlayer(player)}
+                                            onMouseLeave={() => setHoveredPlayer(null)}
+                                        />
+                                        {isSelected && (
+                                            <text
+                                                x={x}
+                                                y={y - radius - 8}
+                                                textAnchor="middle"
+                                                fontSize="12"
+                                                fontWeight="600"
+                                                fill="#92400e"
+                                            >
+                                                {player.Player}
+                                            </text>
+                                        )}
+                                    </g>
+                                );
+                            })}
+                        </svg>
+
+                        {hoveredPlayer && (
+                            <div 
+                                className="tooltip"
+                                style={{ 
+                                    left: mousePos.x + 15,
+                                    top: mousePos.y - 15
+                                }}
+                            >
+                                <div className="tooltip-player">{hoveredPlayer.Player}</div>
+                                <div>Team: {hoveredPlayer.Team}</div>
+                                <div>Position: {hoveredPlayer.Position}</div>
+                                <div>Total WAR: {formatStatValue('WAR', hoveredPlayer.WAR || 0)}</div>
+                                <div>{xStat}: {formatStatValue(xStat, hoveredPlayer[xStat] || 0)}</div>
+                                <div>{yStat}: {formatStatValue(yStat, hoveredPlayer[yStat] || 0)}</div>
+                                <div>PA: {formatStatValue('PA', hoveredPlayer.PA || 0)}</div>
+                            </div>
+                        )}
+                        
+                        <div className="source">
+                            Source: Baseball Reference
+                        </div>
+                    </div>
+                </div>
+                );
+            };
+
+            const renderFieldTab = () => {
+                return (
+                    <div className="field-container">
+                        <div className="field-header">
+                            <div>
+                                <h1>Position Leaders</h1>
+                                <p className="subtitle">Top player at each position by selected stat</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'end' }}>
+                                <div className="filter-group">
+                                    <label>Stat</label>
+                                    <select value={fieldStat} onChange={(e) => setFieldStat(e.target.value)}>
+                                        {fieldStatOptions.map(group => (
+                                            <optgroup key={group.category} label={group.category}>
+                                                {group.stats.map(stat => (
+                                                    <option key={stat} value={stat}>{stat}</option>
+                                                ))}
+                                            </optgroup>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="filter-group">
+                                    <label>Min PA</label>
+                                    <div className="pa-filter">
+                                        <select value={fieldPaOperator} onChange={(e) => setFieldPaOperator(e.target.value)}>
+                                            <option value=">=">≥</option>
+                                            <option value="<=">≤</option>
+                                            <option value="=">=</option>
+                                        </select>
+                                        <input 
+                                            type="number" 
+                                            value={fieldPaValue}
+                                            onChange={(e) => setFieldPaValue(e.target.value)}
+                                            placeholder="PA"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <svg 
+                            className="field-svg" 
+                            viewBox="0 0 900 600"
+                            onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                        >
+                            <path
+                                d="M 450 550 L 150 250 L 450 50 L 750 250 Z"
+                                fill="#2d5016"
+                                opacity="0.3"
+                            />
+                            <path
+                                d="M 450 550 L 250 350 L 450 200 L 650 350 Z"
+                                fill="#8b4513"
+                                opacity="0.2"
+                            />
+                            
+                            {Object.entries(FIELD_POSITIONS).map(([position, coords]) => {
+                                const topPlayers = topPlayersByPosition[position] || [];
+                                const topPlayer = topPlayers[0];
+                                
+                                if (!topPlayer) return null;
+                                
+                                const statValue = topPlayer[fieldStat] || 0;
+                                const radius = 35;
+                                
+                                return (
+                                    <g key={position}>
+                                        <text
+                                            x={coords.x}
+                                            y={coords.y - radius - 35}
+                                            textAnchor="middle"
+                                            fontSize="14"
+                                            fontWeight="600"
+                                            fill="#374151"
+                                        >
+                                            {topPlayer.Player}
+                                        </text>
+                                        <text
+                                            x={coords.x}
+                                            y={coords.y - radius - 20}
+                                            textAnchor="middle"
+                                            fontSize="18"
+                                            fontWeight="bold"
+                                            fill="#1f2937"
+                                        >
+                                            {formatStatValue(fieldStat, statValue)}
+                                        </text>
+                                        
+                                        <circle
+                                            className="position-bubble"
+                                            cx={coords.x}
+                                            cy={coords.y}
+                                            r={radius}
+                                            fill="#3b82f6"
+                                            fillOpacity="0.7"
+                                            stroke="#2563eb"
+                                            strokeWidth="3"
+                                            onMouseEnter={() => setHoveredFieldPosition(position)}
+                                            onMouseLeave={() => setHoveredFieldPosition(null)}
+                                        />
+                                        
+                                        <text
+                                            x={coords.x}
+                                            y={coords.y + 5}
+                                            textAnchor="middle"
+                                            fontSize="16"
+                                            fontWeight="bold"
+                                            fill="white"
+                                            pointerEvents="none"
+                                        >
+                                            {position}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </svg>
+
+                        {hoveredFieldPosition && topPlayersByPosition[hoveredFieldPosition] && (
+                            <div 
+                                className="field-tooltip"
+                                style={{ 
+                                    left: mousePos.x + 15,
+                                    top: mousePos.y - 15
+                                }}
+                            >
+                                <div className="field-tooltip-player">
+                                    Top 5 {hoveredFieldPosition} - {fieldStat}
+                                </div>
+                                <div className="field-tooltip-list">
+                                    {topPlayersByPosition[hoveredFieldPosition].map((player, idx) => (
+                                        <div key={idx} className="field-tooltip-item">
+                                            <span>{idx + 1}. {player.Player}</span>
+                                            <span>{formatStatValue(fieldStat, player[fieldStat])}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            return (
+                <div>
+                    <div className="tabs">
+                        <button 
+                            className={`tab ${activeTab === 'chart' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('chart')}
+                        >
+                            Bubble Chart
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'field' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('field')}
+                        >
+                            Position Leaders
+                        </button>
+                    </div>
+                    
+                    {activeTab === 'chart' ? renderChartTab() : renderFieldTab()}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<StatsChart />, document.getElementById('root'));
+    </script>
+</body>
+</html>
